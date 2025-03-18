@@ -45,6 +45,7 @@ from typing import Optional
 import torch
 import transformers
 from datasets import load_dataset
+from datasets import Dataset
 from transformers import AutoTokenizer, set_seed, AutoProcessor
 from transformers.trainer_utils import get_last_checkpoint
 import trl
@@ -61,6 +62,10 @@ from trl import (
 from qwen_vl_utils import process_vision_info
 logger = logging.getLogger(__name__)
 
+
+sys.path.append('/home/kaiyu/Graduation/WeatherRFT/src')
+
+from eval.weather_rft_dataset_loader import WeatherRFTDataset
 
 @dataclass
 class SFTConfig(trl.SFTConfig):
@@ -103,39 +108,27 @@ def convert_example(example):
       ]
     }
     """
-    messages = []
-    if "system" in example:
-        messages.append({
-            "role": "system",
-            "content": [{"type": "text", "text": example["system"]}],
-        })
-    else:
-        SYSTEM_PROMPT = (
-    "A conversation between User and Assistant. The user asks a question, and the Assistant solves it. The assistant "
-    "first thinks about the reasoning process in the mind and then provides the user with the answer. The reasoning "
-    "process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e., "
-    "<think> reasoning process here </think><answer> answer here </answer>"
-        )
-        messages.append({
-            "role": "system",
-            "content": [{"type": "text", "text": SYSTEM_PROMPT}],
-        })
 
-    thinking = example.get("thinking")
-    problem = example.get("problem")
-    solution = example.get("solution")
-    image = example.get("image")
-    messages.append({
-        "role": "user",
-        "content": [
-            {"type": "text", "text": problem},
-            {"type": "image", "image": image},
-            ]
-    })
-    messages.append({
-        "role": "assistant",
-        "content": f"{thinking}\n\n{solution}",
-    })
+    prompt = example.get("prompt")
+    answer = example.get("answer")
+    image_path = example.get("image_path")
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "image": image_path,
+                },
+                {"type": "text", "text": prompt},
+            ],
+        },
+        {
+            "role": "assistant",
+            "content": f"{answer}",
+        }
+    ]
     
     example["messages"] = messages
     return example
@@ -143,19 +136,22 @@ def convert_example(example):
 
 def collate_fn(examples):
     texts = [
-        processor.apply_chat_template( convert_example(example)["messages"], tokenize=False, add_generation_prompt=True)
+        processor.apply_chat_template(convert_example(example)["messages"], tokenize=False, add_generation_prompt=True)
         for example in examples
     ]
+
     image_inputs = []
     for example in examples:
         imgs, vids = process_vision_info(example["messages"])
         image_inputs.append(imgs)
+
     batch = processor(
         text=texts,
         images=image_inputs,
         return_tensors="pt",
         padding=True,
     )
+
     labels = batch["input_ids"].clone()
     labels[labels == processor.tokenizer.pad_token_id] = -100
     image_token_id = processor.tokenizer.convert_tokens_to_ids(processor.image_token)
@@ -204,7 +200,11 @@ def main(script_args, training_args, model_args):
     # Load datasets
     ################
 
-    dataset = load_dataset(script_args.dataset_name, name=script_args.dataset_config)
+    weather_rft_dataset_train = WeatherRFTDataset(weather_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherRFT_dataset.json", image_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherIMG", split='train')
+    weather_rft_dataset_validation = WeatherRFTDataset(weather_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherRFT_dataset.json", image_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherIMG", split='validation')
+    
+    train_dataset = Dataset.from_dict({key: [d[key] for d in weather_rft_dataset_train] for key in weather_rft_dataset_train[0]})
+    eval_dataset = Dataset.from_dict({key: [d[key] for d in weather_rft_dataset_validation] for key in weather_rft_dataset_validation[0]})
 
     ################
     # Load tokenizer
@@ -257,8 +257,8 @@ def main(script_args, training_args, model_args):
     trainer = SFTTrainer(
         model=model,
         args=training_args,
-        train_dataset=dataset[script_args.dataset_train_split],
-        eval_dataset=dataset[script_args.dataset_test_split] if training_args.eval_strategy != "no" else None,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset if training_args.eval_strategy != "no" else None,
         processing_class=processor.tokenizer,
         data_collator=collate_fn,
         peft_config=get_peft_config(model_args)
@@ -275,7 +275,7 @@ def main(script_args, training_args, model_args):
         checkpoint = last_checkpoint
     train_result = trainer.train(resume_from_checkpoint=checkpoint)
     metrics = train_result.metrics
-    metrics["train_samples"] = len(dataset[script_args.dataset_train_split])
+    metrics["train_samples"] = len(train_dataset)
     trainer.log_metrics("train", metrics)
     trainer.save_metrics("train", metrics)
     trainer.save_state()
@@ -306,8 +306,6 @@ def main(script_args, training_args, model_args):
         logger.info("Pushing to hub...")
         trainer.push_to_hub(**kwargs)
         processor.push_to_hub(training_args.hub_model_id)
-
-
 
 
 if __name__ == "__main__":

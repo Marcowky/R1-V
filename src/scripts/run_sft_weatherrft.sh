@@ -1,1 +1,1 @@
-ACCELERATE_LOG_LEVEL=info accelerate launch --config_file src/r1-v/configs/zero2.yaml src/r1-v/src/open_r1/sft.py --config src/r1-v/configs/qwen2vl_sft_config.yaml 
+ACCELERATE_LOG_LEVEL=info CUDA_VISIBLE_DEVICES=2 accelerate launch --main_process_port 29510 --config_file src/r1-v/configs/zero2_weatherrft.yaml src/r1-v/src/open_r1/sft_weatherrft.py --config src/r1-v/configs/qwen2vl_sft_config_weatherrft.yaml 
