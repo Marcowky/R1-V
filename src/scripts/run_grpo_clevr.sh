@@ -1,3 +1,5 @@
+cd src/r1-v/
+
 export DEBUG_MODE="true"
 export LOG_PATH="./debug_log_2b.txt"
 export HF_ENDPOINT='https://hf-mirror.com'
@@ -9,11 +11,11 @@ torchrun --nproc_per_node="1" \
     --master_port="12345" \
     src/open_r1/grpo.py \
     --output_dir /home/kaiyu/Graduation/REF_REPOS/R1-V/output \
-    --model_name_or_path /home/kaiyu/model/Qwen/Qwen2-VL-2B-Instruct \
+    --model_name_or_path /home/kaiyu/Model/Qwen/Qwen2-VL-2B-Instruct \
     --dataset_name leonardPKU/GEOQA_R1V_Train_8K \
     --max_prompt_length 1024 \
     --per_device_train_batch_size 1 \
-    --gradient_accumulation_steps 2 \
+    --gradient_accumulation_steps 1 \
     --logging_steps 1 \
     --bf16 \
     --report_to wandb \

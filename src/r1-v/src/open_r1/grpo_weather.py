@@ -18,12 +18,19 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Optional
 
-from datasets import load_dataset, load_from_disk
+from datasets import load_dataset, load_from_disk, Dataset
 from transformers import Qwen2VLForConditionalGeneration
+from PIL import Image
 
 from math_verify import parse, verify
-from open_r1.trainer import Qwen2VLGRPOTrainer, Qwen2VLGRPOVLLMTrainer, Qwen2VLGRPOVLLMTrainerModified
+from trainer import Qwen2VLGRPOTrainer, Qwen2VLGRPOVLLMTrainer, Qwen2VLGRPOVLLMTrainerModified
 from trl import GRPOConfig, GRPOTrainer, ModelConfig, ScriptArguments, TrlParser, get_peft_config
+
+import sys
+
+sys.path.append('/home/kaiyu/Graduation/WeatherRFT/src')
+
+from eval.weather_rft_dataset_loader import WeatherRFTDataset
 
 
 @dataclass
@@ -51,44 +58,45 @@ class GRPOScriptArguments(ScriptArguments):
 
 
 def accuracy_reward(completions, solution, **kwargs):
-    """Reward function that checks if the completion is correct using either symbolic verification or exact string matching."""
+    """Reward function that checks if the completion matches the correct answer choice (A/B/C/D)."""
     contents = [completion[0]["content"] for completion in completions]
     rewards = []
     current_time = datetime.now().strftime("%d-%H-%M-%S-%f")
     for content, sol in zip(contents, solution):
         reward = 0.0
-        # Try symbolic verification first
         try:
-            answer = parse(content)
-            if float(verify(answer, parse(sol))) > 0:
-                reward = 1.0
-        except Exception:
-            pass  # Continue to next verification method if this fails
+            # solution 本来就是 A/B/C/D 中的一个
+            ground_truth = solution
+            
+            # 将 content 从 <answer> </answer> 中提取出来
+            content_match = re.search(r'<answer>(.*?)</answer>', content)
+            content_answer = content_match.group(1).strip() if content_match else content.strip()
 
-        # If symbolic verification failed, try string matching
-        if reward == 0.0:
-            try:
-                # Extract answer from solution if it has think/answer tags
-                sol_match = re.search(r'<answer>(.*?)</answer>', sol)
-                ground_truth = sol_match.group(1).strip() if sol_match else sol.strip()
-                
-                # Extract answer from content if it has think/answer tags
-                content_match = re.search(r'<answer>(.*?)</answer>', content)
-                student_answer = content_match.group(1).strip() if content_match else content.strip()
-                
-                # Compare the extracted answers
-                if student_answer == ground_truth:
+            # 正则表达式提取出 A/B/C/D 中的一个
+            student_answer_match = re.search(r'[A-D]', content_answer)
+            student_answer = student_answer_match.group(0) if student_answer_match else student_answer
+            
+            # 将 ground_truth 和 student_answer 转换为大写
+            ground_truth = ground_truth.upper().strip()
+            student_answer = student_answer.upper().strip()
+            
+            # 判断对错
+            if student_answer == ground_truth:
+                # 若 content_answer 就已经是 A/B/C/D 中的一个，则直接奖励 1.0
+                if content_answer == student_answer:
                     reward = 1.0
-            except Exception:
-                pass  # Keep reward as 0.0 if both methods fail
-                
+                else:
+                    reward = 0.5
+                    
+        except Exception:
+            pass  # Keep reward as 0.0 if matching fails
+            
         rewards.append(reward)
         if os.getenv("DEBUG_MODE") == "true":
             log_path = os.getenv("LOG_PATH")
-            # local_rank = int(os.getenv("LOCAL_RANK", 0))
             with open(log_path, "a") as f:
                 f.write(f"------------- {current_time} Accuracy reward: {reward} -------------\n")
-                f.write(f"Content: {content}\n")
+                f.write(f"Content: {content}\n") 
                 f.write(f"Solution: {sol}\n")
     return rewards
 
@@ -119,57 +127,34 @@ def main(script_args, training_args, model_args):
     reward_funcs = [reward_funcs_registry[func] for func in script_args.reward_funcs]
 
     # Load the dataset
-    dataset = load_dataset(script_args.dataset_name, name=script_args.dataset_config)
+    weather_rft_dataset_train = WeatherRFTDataset(weather_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherRFT_dataset.json", image_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherIMG", split='train', prompt_type='r1')
+    weather_rft_dataset_validation = WeatherRFTDataset(weather_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherRFT_dataset.json", image_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherIMG", split='validation', prompt_type='r1')
+
+    train_dataset = Dataset.from_dict({key: [d[key] for d in weather_rft_dataset_train] for key in weather_rft_dataset_train[0]})
+    eval_dataset = Dataset.from_dict({key: [d[key] for d in weather_rft_dataset_validation] for key in weather_rft_dataset_validation[0]})
 
 
-    # Format into conversation
-    def make_conversation(example):
-        return {
-            "prompt": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": example["problem"]},
-            ],
-        }
-
-    # def make_conversation_image(example):
-    #     return {
-    #         "prompt": [
-    #             {"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
-    #             {
-    #                 "role": "user",
-    #                 "content": [
-    #                     {"type": "image"},
-    #                     {"type": "text", "text": example["problem"]},
-    #                 ],
-    #             },
-    #         ],
-    #     }
-
-    QUESTION_TEMPLATE = "{Question}  Output the thinking process in <think> </think> and final answer (number) in <answer> </answer> tags."
-
-    def make_conversation_image(example):
+    def process_example(example):
+        prompt = example.get("prompt")
+        image = Image.open(example.get("image_path"))
+        solution = example.get("answer")
         return {
             "prompt": [
                 {
                     "role": "user",
                     "content": [
                         {"type": "image"},
-                        {"type": "text", "text": QUESTION_TEMPLATE.format(Question=example["problem"])},
+                        {"type": "text", "text": prompt},
                     ],
                 },
             ],
+            "image": image,
+            "solution": solution
         }
 
 
-    if "image" in dataset[script_args.dataset_train_split].features:
-        print("has image in dataset")
-        dataset = dataset.map(make_conversation_image)  # Utilize multiprocessing for faster mapping
-        # dataset = dataset.remove_columns(["original_question", "original_answer"])
-
-    else:
-        print("no image in dataset")
-        dataset = dataset.map(make_conversation)
-        dataset = dataset.remove_columns("messages")
+    train_dataset = train_dataset.map(process_example)
+    eval_dataset = eval_dataset.map(process_example)
 
     
     trainer_cls = Qwen2VLGRPOTrainer if not training_args.use_vllm else Qwen2VLGRPOVLLMTrainerModified
@@ -180,8 +165,8 @@ def main(script_args, training_args, model_args):
         model=model_args.model_name_or_path,
         reward_funcs=reward_funcs,
         args=training_args,
-        train_dataset=dataset[script_args.dataset_train_split],
-        eval_dataset=dataset[script_args.dataset_test_split] if training_args.eval_strategy != "no" else None,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         peft_config=get_peft_config(model_args),
         attn_implementation=model_args.attn_implementation,
         max_pixels=script_args.max_pixels,
