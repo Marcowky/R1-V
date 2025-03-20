@@ -8,7 +8,7 @@ torchrun --nproc_per_node="1" \
     --nnodes="1" \
     --node_rank="0" \
     --master_addr="127.0.0.1" \
-    --master_port="12345" \
+    --master_port="12346" \
     src/open_r1/grpo.py \
     --output_dir /home/kaiyu/Graduation/REF_REPOS/R1-V/output \
     --model_name_or_path /home/kaiyu/Model/Qwen/Qwen2-VL-2B-Instruct \
