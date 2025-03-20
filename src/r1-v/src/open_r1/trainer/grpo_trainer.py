@@ -183,6 +183,7 @@ class Qwen2VLGRPOTrainer(Trainer):
                     "Invalid `torch_dtype` passed to `GRPOConfig`. Expected either 'auto' or a string representing "
                     f"a `torch.dtype` (e.g., 'float32'), but got {torch_dtype}."
                 )
+            model_init_kwargs["torch_dtype"] = torch.bfloat16
             # Disable caching if gradient checkpointing is enabled (not supported)
             model_init_kwargs["use_cache"] = (
                 False if args.gradient_checkpointing else model_init_kwargs.get("use_cache")
@@ -363,9 +364,7 @@ class Qwen2VLGRPOTrainer(Trainer):
             text=prompts_text,
             images=images,
             return_tensors="pt",
-            padding=True,
-            padding_side="left",
-            add_special_tokens=False,
+            padding=True
         )
         prompt_inputs = super()._prepare_inputs(prompt_inputs)
 

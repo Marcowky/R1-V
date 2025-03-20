@@ -25,4 +25,4 @@ torchrun --nproc_per_node="1" \
     --run_name Qwen2-VL-2B-GRPO-CLEVR-70k \
     --save_steps 100 \
     --save_only_model true \
-    --num_generations 8
+    --num_generations 4

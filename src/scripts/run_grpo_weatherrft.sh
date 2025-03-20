@@ -25,4 +25,6 @@ torchrun --nproc_per_node="1" \
     --run_name Qwen2-VL-2B-GRPO-WeatherRFT \
     --save_steps 100 \
     --save_only_model true \
-    --num_generations 8
+    --num_generations 4 \
+    --min_pixels 3136 \
+    --max_pixels 401408 \
