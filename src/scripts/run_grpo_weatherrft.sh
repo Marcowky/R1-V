@@ -15,16 +15,18 @@ torchrun --nproc_per_node="1" \
     --dataset_name leonardPKU/GEOQA_R1V_Train_8K \
     --deepspeed local_scripts/zero3.json \
     --per_device_train_batch_size 1 \
-    --gradient_accumulation_steps 1 \
+    --gradient_accumulation_steps 4 \
     --logging_steps 1 \
     --bf16 \
     --report_to wandb \
     --gradient_checkpointing false \
     --attn_implementation flash_attention_2 \
-    --num_train_epochs 2 \
+    --num_train_epochs 1 \
     --run_name Qwen2-VL-2B-GRPO-WeatherRFT \
     --save_steps 100 \
     --save_only_model true \
     --num_generations 4 \
     --min_pixels 3136 \
     --max_pixels 200704 \
+    --eval_strategy epoch \
+    --eval_steps 100 \
