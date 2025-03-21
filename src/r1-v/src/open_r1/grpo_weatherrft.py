@@ -66,7 +66,7 @@ def accuracy_reward(completions, solution, **kwargs):
         reward = 0.0
         try:
             # solution 本来就是 A/B/C/D 中的一个
-            ground_truth = solution
+            ground_truth = sol
             
             # 将 content 从 <answer> </answer> 中提取出来
             content_match = re.search(r'<answer>(.*?)</answer>', content)
