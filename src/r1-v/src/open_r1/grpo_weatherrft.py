@@ -44,7 +44,7 @@ class GRPOScriptArguments(ScriptArguments):
     """
 
     reward_funcs: list[str] = field(
-        default_factory=lambda: ["accuracy", "format"],
+        default_factory=lambda: ["accuracy", "format", "length"],
         metadata={"help": "List of reward functions. Possible values: 'accuracy', 'format'"},
     )
     max_pixels: Optional[int] = field(
@@ -100,7 +100,7 @@ def accuracy_reward(completions, solution, **kwargs):
                 f.write(f"Solution: {sol}\n")
     return rewards
 
-
+# TODO 让 anwer 部分重要一些
 def format_reward(completions, **kwargs):
     """Reward function that checks if the completion has a specific format."""
     pattern = r"<think>.*?</think>\s*<answer>.*?</answer>"
@@ -109,9 +109,28 @@ def format_reward(completions, **kwargs):
     return [1.0 if match else 0.0 for match in matches]
 
 
+def length_reward(completions, **kwargs):
+    """Reward function that checks if the completion has a specific length."""
+
+    completion_contents = [completion[0]["content"] for completion in completions]
+    
+    # Calculate lengths and extract answers in a single pass
+    think_lengths = [
+        len(content) - len(match.group(1) if (match := re.search(r'<answer>(.*?)</answer>', content)) else "")
+        for content in completion_contents
+    ]
+    
+    # Calculate think lengths
+    min_think = min(think_lengths)
+    max_think = max(think_lengths)
+
+    # Normalize think lengths
+    return [0.5 * (think_len - min_think) / max_think for think_len in think_lengths]
+
 reward_funcs_registry = {
     "accuracy": accuracy_reward,
     "format": format_reward,
+    "length": length_reward
 }
 
 SYSTEM_PROMPT = (

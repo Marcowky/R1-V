@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import math
 import textwrap
 from collections import defaultdict
 from typing import Any, Callable, Optional, Union
@@ -353,6 +354,35 @@ class Qwen2VLGRPOTrainer(Trainer):
     def _prepare_inputs(self, inputs: dict[str, Union[torch.Tensor, Any]]) -> dict[str, Union[torch.Tensor, Any]]:
         return inputs
 
+
+    def cosine_lr_schedule(self, global_step, max_steps, base_lr=1, warmup_ratio=0.1, min_lr=0):
+        """
+        计算当前步骤的学习率，支持 warmup 和余弦衰减。
+
+        参数:
+            global_step (int): 当前步骤。
+            max_steps (int): 总训练步骤。
+            warmup_ratio (int): warmup 的比例。
+            base_lr (float): 初始学习率。
+            min_lr (float): 最小学习率。
+
+        返回:
+            float: 当前步骤的学习率。
+        """
+        
+        # 计算 warmup_steps
+        warmup_steps = max_steps * warmup_ratio
+        if global_step < warmup_steps:
+            # Warmup 阶段：线性增加学习率
+            lr = base_lr * (global_step / warmup_steps)
+        else:
+            # Cosine 衰减阶段
+            progress = (global_step - warmup_steps) / (max_steps - warmup_steps)
+            lr = min_lr + 0.5 * (base_lr - min_lr) * (1 + math.cos(math.pi * progress))
+        
+        return lr
+
+
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         if return_outputs:
             raise ValueError("The GRPOTrainer does not support returning outputs")
@@ -422,6 +452,10 @@ class Qwen2VLGRPOTrainer(Trainer):
         # Compute the rewards
         prompts = [prompt for prompt in prompts for _ in range(self.num_generations)]
 
+        # Cal Learning rate
+        cur_lr = self.cosine_lr_schedule(global_step=self.state.global_step, max_steps=self.state.max_steps)
+
+        # Cal Rewards
         rewards_per_func = torch.zeros(len(prompts), len(self.reward_funcs), device=device)
         for i, (reward_func, reward_processing_class) in enumerate(
             zip(self.reward_funcs, self.reward_processing_classes)
@@ -446,7 +480,12 @@ class Qwen2VLGRPOTrainer(Trainer):
                         # Repeat each value in the column for `num_generations` times
                         reward_kwargs[key].extend([example[key]] * self.num_generations)
                 output_reward_func = reward_func(prompts=prompts, completions=completions, **reward_kwargs)
+                # 对 length reward 乘学习率
+                if reward_func.__name__ == 'length_reward':
+                    output_reward_func = [x * cur_lr for x in output_reward_func]
+
                 rewards_per_func[:, i] = torch.tensor(output_reward_func, dtype=torch.float32, device=device)
+
 
         # Sum the rewards from all reward functions
         rewards = rewards_per_func.sum(dim=1)
