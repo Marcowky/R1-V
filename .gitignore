@@ -3,3 +3,4 @@ hostfiles/
 internal_scripts/
 wandb/
 data/
+debug**
