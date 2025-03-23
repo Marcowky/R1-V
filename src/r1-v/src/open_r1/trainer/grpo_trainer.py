@@ -491,7 +491,7 @@ class Qwen2VLGRPOTrainer(Trainer):
         current_time = datetime.now().strftime("%d-%H-%M-%S-%f")
         if os.getenv("DEBUG_MODE") == "true":
             log_path = os.getenv("LOG_PATH")
-            with open(log_path, "a") as f:
+            with open(log_path, "a", encoding="utf-8") as f:
                 for i, (completion, prompt) in enumerate(zip(completions, prompts)):
                     f.write(f"---------------------------{current_time} {self.state.global_step}/{self.state.max_steps}---------------------------\n")
                     f.write(f"[Info]: {reward_kwargs['id'][i]}, {reward_kwargs['category'][i]}\n")
