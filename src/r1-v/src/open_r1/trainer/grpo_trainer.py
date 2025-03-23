@@ -492,10 +492,11 @@ class Qwen2VLGRPOTrainer(Trainer):
         if os.getenv("DEBUG_MODE") == "true":
             log_path = os.getenv("LOG_PATH")
             with open(log_path, "a") as f:
-                for i, completion in enumerate(completions):
+                for i, (completion, prompt) in enumerate(zip(completions, prompts)):
                     f.write(f"---------------------------{current_time} {self.state.global_step}/{self.state.max_steps}---------------------------\n")
                     f.write(f"[Info]: {reward_kwargs['id'][i]}, {reward_kwargs['category'][i]}\n")
-                    f.write(f"[Content]: {completion[0]['content']}\n")
+                    f.write(f"[Prompt]: \n{prompt[0]['content'][1]['text']}\n")
+                    f.write(f"[Content]: \n{completion[0]['content']}\n")
                     f.write(f"[Solution]: {reward_kwargs['solution'][i]}\n")
                     for reward_func, reward in zip(self.reward_funcs, rewards_per_func[i]):
                         f.write(f"[{reward_func.__name__}]: {reward}\n")

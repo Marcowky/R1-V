@@ -140,8 +140,8 @@ def main(script_args, training_args, model_args):
     reward_funcs = [reward_funcs_registry[func] for func in script_args.reward_funcs]
 
     # Load the dataset
-    weather_rft_dataset_train = WeatherRFTDataset(weather_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherRFT_dataset.json", image_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherIMG", split='train', prompt_type='r1')
-    weather_rft_dataset_validation = WeatherRFTDataset(weather_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherRFT_dataset.json", image_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherIMG", split='validation', prompt_type='r1')
+    weather_rft_dataset_train = WeatherRFTDataset(weather_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherRFT_dataset.json", image_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherIMG", split='train', prompt_type='r1', language='en')
+    weather_rft_dataset_validation = WeatherRFTDataset(weather_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherRFT_dataset.json", image_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/WeatherIMG", split='validation', prompt_type='r1', language='en')
 
     train_dataset = Dataset.from_dict({key: [d[key] for d in weather_rft_dataset_train] for key in weather_rft_dataset_train[0]})
     eval_dataset = Dataset.from_dict({key: [d[key] for d in weather_rft_dataset_validation] for key in weather_rft_dataset_validation[0]})
