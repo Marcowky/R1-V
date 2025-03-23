@@ -92,12 +92,6 @@ def accuracy_reward(completions, solution, **kwargs):
             pass  # Keep reward as 0.0 if matching fails
             
         rewards.append(reward)
-        if os.getenv("DEBUG_MODE") == "true":
-            log_path = os.getenv("LOG_PATH")
-            with open(log_path, "a") as f:
-                f.write(f"------------- {current_time} Accuracy reward: {reward} -------------\n")
-                f.write(f"Content: {content}\n") 
-                f.write(f"Solution: {sol}\n")
     return rewards
 
 # TODO 让 anwer 部分重要一些

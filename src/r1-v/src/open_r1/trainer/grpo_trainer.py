@@ -17,6 +17,7 @@ import math
 import textwrap
 from collections import defaultdict
 from typing import Any, Callable, Optional, Union
+from datetime import datetime
 
 import torch
 import torch.utils.data
@@ -485,6 +486,20 @@ class Qwen2VLGRPOTrainer(Trainer):
                     output_reward_func = [x * cur_lr for x in output_reward_func]
 
                 rewards_per_func[:, i] = torch.tensor(output_reward_func, dtype=torch.float32, device=device)
+
+        # Log the completions and rewards
+        current_time = datetime.now().strftime("%d-%H-%M-%S-%f")
+        if os.getenv("DEBUG_MODE") == "true":
+            log_path = os.getenv("LOG_PATH")
+            with open(log_path, "a") as f:
+                for i, completion in enumerate(completions):
+                    f.write(f"---------------------------{current_time} {self.state.global_step}/{self.state.max_steps}---------------------------\n")
+                    f.write(f"[Info]: {reward_kwargs['id'][i]}, {reward_kwargs['category'][i]}\n")
+                    f.write(f"[Content]: {completion[0]['content']}\n")
+                    f.write(f"[Solution]: {reward_kwargs['solution'][i]}\n")
+                    for reward_func, reward in zip(self.reward_funcs, rewards_per_func[i]):
+                        f.write(f"[{reward_func.__name__}]: {reward}\n")
+                    f.write("\n")
 
 
         # Sum the rewards from all reward functions
