@@ -1,16 +1,18 @@
 cd src/r1-v
 
+run_name="Qwen2-VL-2B-GRPO-WeatherRFT-0323-en-4gpu" # to modify
+
 export DEBUG_MODE="true"
-export LOG_PATH="./debug_log_2b.txt" # to modify
+export LOG_PATH="./debug_log_${run_name}.txt" 
 export HF_ENDPOINT='https://hf-mirror.com'
 
-torchrun --nproc_per_node="3" \
+torchrun --nproc_per_node="4" \
     --nnodes="1" \
     --node_rank="0" \
     --master_addr="127.0.0.1" \
-    --master_port="12366" \
+    --master_port="12368" \
     src/open_r1/grpo_weatherrft.py \
-    --output_dir /home/kaiyu/Graduation/REF_REPOS/R1-V/output/0322_new \
+    --output_dir /home/kaiyu/Graduation/REF_REPOS/R1-V/output/$run_name \
     --model_name_or_path /home/kaiyu/Model/Qwen/Qwen2-VL-2B-Instruct \
     --dataset_name leonardPKU/GEOQA_R1V_Train_8K \
     --deepspeed local_scripts/zero3.json \
@@ -22,9 +24,10 @@ torchrun --nproc_per_node="3" \
     --gradient_checkpointing false \
     --attn_implementation flash_attention_2 \
     --num_train_epochs 2 \
-    --run_name Qwen2-VL-2B-GRPO-WeatherRFT \
+    --run_name $run_name \
     --save_steps 100 \
     --save_only_model true \
     --num_generations 4 \
     --min_pixels 3136 \
     --max_pixels 401408 \
+    --seed 42
