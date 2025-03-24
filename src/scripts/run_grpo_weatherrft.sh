@@ -1,9 +1,12 @@
 cd src/r1-v
 
-run_name="Qwen2-VL-2B-GRPO-WeatherRFT-0324-en-4gpu-formate" # to modify
+# 获取当前时间
+current_time=$(date +"%Y-%m-%d-%H-%M-%S")
+
+run_name="Qwen2-VL-2B-GRPO-WeatherRFT-en-4gpu-formate-${current_time}" # to modify
 
 export DEBUG_MODE="true"
-export LOG_PATH="./debug_log_${run_name}.txt" 
+export LOG_PATH="/home/kaiyu/Graduation/REF_REPOS/R1-V/log/log_${run_name}.txt" 
 export HF_ENDPOINT='https://hf-mirror.com'
 
 torchrun --nproc_per_node="4" \
