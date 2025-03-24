@@ -13,11 +13,14 @@
 # limitations under the License.
 
 import os
+import math
 import textwrap
 from collections import defaultdict
 from typing import Any, Callable, Optional, Union
 from accelerate.utils.other import is_compiled_module
 from accelerate.utils import broadcast_object_list, gather, gather_object
+from datetime import datetime
+
 import torch
 import torch.utils.data
 import transformers
@@ -121,7 +124,7 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
                 or torch_dtype == "auto"
                 or torch_dtype is None
             ):
-                pass  # torch_dtype is already a torch.dtype or "auto" or None
+                model_init_kwargs["torch_dtype"] = torch.bfloat16 # 手动设置为 bfloat16
             elif isinstance(torch_dtype, str):  # it's a str, but not "auto"
                 torch_dtype = getattr(torch, torch_dtype)
                 model_init_kwargs["torch_dtype"] = torch_dtype
@@ -411,6 +414,35 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
             per_token_logps.append(token_log_prob)
         return torch.stack(per_token_logps)
 
+
+    def cosine_lr_schedule(self, global_step, max_steps, base_lr=1, warmup_ratio=0.1, min_lr=0):
+        """
+        计算当前步骤的学习率，支持 warmup 和余弦衰减。
+
+        参数:
+            global_step (int): 当前步骤。
+            max_steps (int): 总训练步骤。
+            warmup_ratio (int): warmup 的比例。
+            base_lr (float): 初始学习率。
+            min_lr (float): 最小学习率。
+
+        返回:
+            float: 当前步骤的学习率。
+        """
+        
+        # 计算 warmup_steps
+        warmup_steps = max_steps * warmup_ratio
+        if global_step < warmup_steps:
+            # Warmup 阶段：线性增加学习率
+            lr = base_lr * (global_step / warmup_steps)
+        else:
+            # Cosine 衰减阶段
+            progress = (global_step - warmup_steps) / (max_steps - warmup_steps)
+            lr = min_lr + 0.5 * (base_lr - min_lr) * (1 + math.cos(math.pi * progress))
+        
+        return lr
+
+
     # Trainer "prepares" the inputs before calling `compute_loss`. It converts to tensor and move to device.
     # Since we preprocess the data in `compute_loss`, we need to override this method to skip this step.
     def _prepare_inputs(
@@ -579,6 +611,17 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
                 for completion in completions
             ]
 
+
+        # 不同 reward 的分数比例
+        cur_lr = self.cosine_lr_schedule(global_step=self.state.global_step, max_steps=self.state.max_steps)
+
+        reward_ratios = {
+            "accuracy_reward": 2,
+            "format_reward": 1,
+            "length_reward": 0.5 * cur_lr
+        }
+
+
         # Compute the rewards
         prompts = [prompt for prompt in prompts for _ in range(self.num_generations)]
         rewards_per_func = torch.zeros(
@@ -620,9 +663,30 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
                 output_reward_func = reward_func(
                     prompts=prompts, completions=completions, **reward_kwargs
                 )
+
+                # 对不同 reward 乘上不同的比例
+                cur_ratio = reward_ratios[reward_func.__name__] if reward_func.__name__ in reward_ratios else 1
+                output_reward_func = [x * cur_ratio for x in output_reward_func]
+
                 rewards_per_func[:, i] = torch.tensor(
                     output_reward_func, dtype=torch.float32, device=device
                 )
+
+        # Log the completions and rewards
+        current_time = datetime.now().strftime("%d-%H-%M-%S-%f")
+        if os.getenv("DEBUG_MODE") == "true":
+            log_path = os.getenv("LOG_PATH")
+            with open(log_path, "a", encoding="utf-8") as f:
+                for i, (completion, prompt) in enumerate(zip(completions, prompts)):
+                    f.write(f"---------------------------{current_time} {self.state.global_step}/{self.state.max_steps}---------------------------\n")
+                    f.write(f"[Info]: {reward_kwargs['id'][i]}, {reward_kwargs['category'][i]}\n")
+                    f.write(f"[Prompt]: \n{prompt[0]['content'][1]['text']}\n")
+                    f.write(f"[Content]: \n{completion[0]['content']}\n")
+                    f.write(f"[Solution]: {reward_kwargs['solution'][i]}\n")
+                    for reward_func, reward in zip(self.reward_funcs, rewards_per_func[i]):
+                        f.write(f"[{reward_func.__name__}]: {reward}\n")
+                    f.write("\n")
+
         rewards_per_func = gather(rewards_per_func)
         # Sum the rewards from all reward functions
         rewards = rewards_per_func.sum(dim=1)
