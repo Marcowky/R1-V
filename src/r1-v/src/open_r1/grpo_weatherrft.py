@@ -14,7 +14,6 @@
 
 import os
 import re
-from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -61,7 +60,6 @@ def accuracy_reward(completions, solution, **kwargs):
     """Reward function that checks if the completion matches the correct answer choice (A/B/C/D)."""
     contents = [completion[0]["content"] for completion in completions]
     rewards = []
-    current_time = datetime.now().strftime("%d-%H-%M-%S-%f")
     for content, sol in zip(contents, solution):
         reward = 0.0
         try:
@@ -74,7 +72,7 @@ def accuracy_reward(completions, solution, **kwargs):
 
             # 正则表达式提取出 A/B/C/D 中的一个
             student_answer_match = re.search(r'[A-D]', content_answer)
-            student_answer = student_answer_match.group(0) if student_answer_match else student_answer
+            student_answer = student_answer_match.group(0) if student_answer_match else ""
             
             # 将 ground_truth 和 student_answer 转换为大写
             ground_truth = ground_truth.upper().strip()
@@ -94,13 +92,15 @@ def accuracy_reward(completions, solution, **kwargs):
         rewards.append(reward)
     return rewards
 
-# TODO 让 anwer 部分重要一些
+
 def format_reward(completions, **kwargs):
     """Reward function that checks if the completion has a specific format."""
-    pattern = r"<think>.*?</think>\s*<answer>.*?</answer>"
     completion_contents = [completion[0]["content"] for completion in completions]
-    matches = [re.fullmatch(pattern, content, re.DOTALL) for content in completion_contents]
-    return [1.0 if match else 0.0 for match in matches]
+    has_think = [bool(re.search(r'<think>.*?</think>', content, re.DOTALL)) for content in completion_contents]
+    has_answer = [bool(re.search(r'<answer>.*?</answer>', content, re.DOTALL)) for content in completion_contents]
+    has_think_and_answer = [bool(re.search(r"<think>.*?</think>\s*<answer>.*?</answer>", content, re.DOTALL)) for content in completion_contents]
+    reward = [0.25 * think + 0.25 * answer + 0.5 * think_and_answer for think, answer, think_and_answer in zip(has_think, has_answer, has_think_and_answer)]
+    return reward
 
 
 def length_reward(completions, **kwargs):

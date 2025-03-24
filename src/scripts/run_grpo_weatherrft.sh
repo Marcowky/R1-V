@@ -1,6 +1,6 @@
 cd src/r1-v
 
-run_name="Qwen2-VL-2B-GRPO-WeatherRFT-0323-en-4gpu" # to modify
+run_name="Qwen2-VL-2B-GRPO-WeatherRFT-0324-en-4gpu-formate" # to modify
 
 export DEBUG_MODE="true"
 export LOG_PATH="./debug_log_${run_name}.txt" 
