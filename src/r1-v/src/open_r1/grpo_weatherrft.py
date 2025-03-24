@@ -68,12 +68,19 @@ def accuracy_reward(completions, solution, **kwargs):
             
             # 将 content 从 <answer> </answer> 中提取出来
             content_match = re.search(r'<answer>(.*?)</answer>', content)
-            content_answer = content_match.group(1).strip() if content_match else content.strip()
-
+            # 若不匹配，则取最后一句话
+            if content_match:
+                content_answer = content_match.group(1).strip()
+            else:
+                sentences = re.split(r'[。！？.!?]', content)
+                # 去除空的句子
+                sentences = [s.strip() for s in sentences if s.strip()]
+                content_answer = sentences[-1] if sentences else ""
+            
             # 正则表达式提取出 A/B/C/D 中的一个
             student_answer_match = re.search(r'[A-D]', content_answer)
             student_answer = student_answer_match.group(0) if student_answer_match else ""
-            
+
             # 将 ground_truth 和 student_answer 转换为大写
             ground_truth = ground_truth.upper().strip()
             student_answer = student_answer.upper().strip()
