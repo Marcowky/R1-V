@@ -66,11 +66,13 @@ def accuracy_reward(completions, solution, **kwargs):
             # solution 本来就是 A/B/C/D 中的一个
             ground_truth = sol
             
-            # 将 content 从 <answer> </answer> 中提取出来
-            content_match = re.search(r'<answer>(.*?)</answer>', content)
-            # 若不匹配，则取最后一句话
-            if content_match:
-                content_answer = content_match.group(1).strip()
+            # 使用 re.findall 获取所有匹配项
+            matches = re.findall(r'<answer>(.*?)</answer>', content, re.DOTALL)
+
+            # 检查是否有匹配项
+            if matches:
+                # 取最后一个匹配项
+                content_answer = matches[-1].strip()
             else:
                 sentences = re.split(r'[。！？.!?]', content)
                 # 去除空的句子
@@ -102,12 +104,31 @@ def accuracy_reward(completions, solution, **kwargs):
 
 def format_reward(completions, **kwargs):
     """Reward function that checks if the completion has a specific format."""
-    completion_contents = [completion[0]["content"] for completion in completions]
-    has_think = [bool(re.search(r'<think>.*?</think>', content, re.DOTALL)) for content in completion_contents]
-    has_answer = [bool(re.search(r'<answer>.*?</answer>', content, re.DOTALL)) for content in completion_contents]
-    has_think_and_answer = [bool(re.search(r"<think>.*?</think>\s*<answer>.*?</answer>", content, re.DOTALL)) for content in completion_contents]
-    reward = [0.25 * think + 0.25 * answer + 0.5 * think_and_answer for think, answer, think_and_answer in zip(has_think, has_answer, has_think_and_answer)]
-    return reward
+
+    def compute_score(content):
+        # 计算 <think> 和 <answer> 的数量
+        single_think = content.count("<think>") == 1 and content.count("</think>") == 1
+        single_answer = content.count("<answer>") == 1 and content.count("</answer>") == 1
+
+        # 判断是否有 <think> 和 <answer> 标签
+        has_think = bool(re.search(r'^<think>.*?</think>', content, re.DOTALL))
+        has_answer = bool(re.search(r'<answer>.*?</answer>$', content, re.DOTALL))
+
+        # 判断是否同时有 <think> 和 <answer> 标签
+        has_think_answer = bool(re.search(r"^<think>.*?</think>\s*<answer>.*?</answer>$", content, re.DOTALL))
+        
+        # 计算分数
+        score = 0.0
+        if has_think and single_think:
+            score += 0.25
+        if has_answer and single_answer:
+            score += 0.25
+        if has_think_answer and single_think and single_answer:
+            score += 0.5
+        
+        return score
+
+    return [compute_score(completion[0]["content"]) for completion in completions]
 
 
 def length_reward(completions, **kwargs):
@@ -117,7 +138,7 @@ def length_reward(completions, **kwargs):
     
     # Calculate lengths and extract answers in a single pass
     think_lengths = [
-        len(content) - len(match.group(1) if (match := re.search(r'<answer>(.*?)</answer>', content)) else "")
+        len(content.strip()) - len(matches[-1].strip() if (matches := re.findall(r'<answer>(.*?)</answer>', content, re.DOTALL)) else "")
         for content in completion_contents
     ]
     

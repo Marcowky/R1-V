@@ -19,6 +19,8 @@ torchrun --nproc_per_node="4" \
     --model_name_or_path /home/kaiyu/Model/Qwen/Qwen2-VL-2B-Instruct \
     --dataset_name leonardPKU/GEOQA_R1V_Train_8K \
     --deepspeed local_scripts/zero3.json \
+    --reward_funcs accuracy format \
+    --max_completion_length 512 \
     --per_device_train_batch_size 1 \
     --gradient_accumulation_steps 4 \
     --logging_steps 1 \
@@ -26,7 +28,7 @@ torchrun --nproc_per_node="4" \
     --report_to wandb \
     --gradient_checkpointing false \
     --attn_implementation flash_attention_2 \
-    --num_train_epochs 2 \
+    --num_train_epochs 1 \
     --run_name $run_name \
     --save_steps 100 \
     --save_only_model true \
