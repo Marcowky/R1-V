@@ -22,7 +22,7 @@ from transformers import Qwen2VLForConditionalGeneration
 from PIL import Image
 
 from math_verify import parse, verify
-from trainer import Qwen2VLGRPOTrainer, Qwen2VLGRPOVLLMTrainer, Qwen2VLGRPOVLLMTrainerModified
+from trainer import Qwen2VLGRPOTrainer, Qwen2VLGRPOVLLMTrainer, Qwen2VLGRPOVLLMTrainerWeatherRFT
 from trl import GRPOConfig, GRPOTrainer, ModelConfig, ScriptArguments, TrlParser, get_peft_config
 
 import sys
@@ -198,7 +198,7 @@ def main(script_args, training_args, model_args):
     eval_dataset = eval_dataset.map(process_example)
 
     
-    trainer_cls = Qwen2VLGRPOTrainer if not training_args.use_vllm else Qwen2VLGRPOVLLMTrainerModified
+    trainer_cls = Qwen2VLGRPOTrainer if not training_args.use_vllm else Qwen2VLGRPOVLLMTrainerWeatherRFT
     print("using: ", trainer_cls)
 
     # Initialize the GRPO trainer
