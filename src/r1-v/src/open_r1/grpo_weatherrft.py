@@ -126,7 +126,7 @@ def length_reward(completions, **kwargs):
     max_think = max(think_lengths)
 
     # Normalize think lengths
-    return [0.5 * (think_len - min_think) / max_think for think_len in think_lengths]
+    return [(think_len - min_think) / max_think for think_len in think_lengths]
 
 reward_funcs_registry = {
     "accuracy": accuracy_reward,

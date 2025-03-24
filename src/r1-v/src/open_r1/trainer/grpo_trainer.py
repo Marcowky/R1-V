@@ -453,8 +453,17 @@ class Qwen2VLGRPOTrainer(Trainer):
         # Compute the rewards
         prompts = [prompt for prompt in prompts for _ in range(self.num_generations)]
 
-        # Cal Learning rate
+
+
+
+        # 不同 reward 的分数比例
         cur_lr = self.cosine_lr_schedule(global_step=self.state.global_step, max_steps=self.state.max_steps)
+
+        reward_ratios = {
+            "accuracy_reward": 2,
+            "format_reward": 1,
+            "length_reward": 0.5 * cur_lr
+        }
 
         # Cal Rewards
         rewards_per_func = torch.zeros(len(prompts), len(self.reward_funcs), device=device)
@@ -481,9 +490,10 @@ class Qwen2VLGRPOTrainer(Trainer):
                         # Repeat each value in the column for `num_generations` times
                         reward_kwargs[key].extend([example[key]] * self.num_generations)
                 output_reward_func = reward_func(prompts=prompts, completions=completions, **reward_kwargs)
-                # 对 length reward 乘学习率
-                if reward_func.__name__ == 'length_reward':
-                    output_reward_func = [x * cur_lr for x in output_reward_func]
+                
+                # 对不同 reward 乘上不同的比例
+                cur_ratio = reward_ratios[reward_func.__name__] if reward_func.__name__ in reward_ratios else 1
+                output_reward_func = [x * cur_ratio for x in output_reward_func]
 
                 rewards_per_func[:, i] = torch.tensor(output_reward_func, dtype=torch.float32, device=device)
 
