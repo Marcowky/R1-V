@@ -4,3 +4,4 @@ internal_scripts/
 wandb/
 data/
 log/
+trained_models/

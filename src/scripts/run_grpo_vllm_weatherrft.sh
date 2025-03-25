@@ -3,7 +3,7 @@ cd src/r1-v/
 # 获取当前时间
 current_time=$(date +"%Y-%m-%d-%H-%M-%S")
 
-RUN_NAME="Qwen2-VL-2B-grpo-vllm-weatherrft-${current_time}"  # to modify
+RUN_NAME="qwen2-vl-2b_grpo_cn-${current_time}"  # to modify
 
 QWEN_PATH="/home/kaiyu/Model/Qwen/Qwen2-VL-2B-Instruct"
 HF_DATASET="leonardPKU/GEOQA_R1V_Train_8K" 
