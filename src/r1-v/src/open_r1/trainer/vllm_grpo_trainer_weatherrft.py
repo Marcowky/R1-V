@@ -693,25 +693,57 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
         # Sum the rewards from all reward functions
         rewards = rewards_per_func.sum(dim=1)
 
-        # Compute grouped-wise rewards
-        mean_grouped_rewards = rewards.view(-1, self.num_generations).mean(dim=1)
-        std_grouped_rewards = rewards.view(-1, self.num_generations).std(dim=1)
 
-        # Normalize the rewards to compute the advantages
+        ##### 去除最大最小 #####
+        # 将奖励按提示分组
+        rewards_grouped = rewards.view(-1, self.num_generations)
+        # 获取最大最小值的索引
+        sorted_indices = torch.argsort(rewards_grouped, dim=1)
+        # 保留不是最大最小的
+        mask = torch.ones_like(rewards_grouped, dtype=torch.bool) 
+        # 计算剩余的提示数量
+        rest_num_generations = self.num_generations
+
+        # 如果生成次数大于 4，去掉最大最小值
+        if self.num_generations >= 4: # 设置阈值
+            min_indices = sorted_indices[:, 0]
+            max_indices = sorted_indices[:, -1]
+            mask.scatter_(1, min_indices.unsqueeze(1), 0)
+            mask.scatter_(1, max_indices.unsqueeze(1), 0)
+            rest_num_generations -= 2 # 去掉最大最小值后的生成次数
+
+        # 将 mask 扩展，使其与原始奖励一一对应
+        rest_mask = mask.view(-1)
+        # 获取剩余的奖励
+        rest_rewards = rewards[rest_mask]
+
+        # 计算剩余分组的奖励统计量
+        mean_grouped_rewards = rest_rewards.view(-1, rest_num_generations).mean(dim=1)  # 计算每个提示下所有生成结果的平均奖励
+        std_grouped_rewards = rest_rewards.view(-1, rest_num_generations).std(dim=1)    # 计算每个提示下所有生成结果的标准差
+
+        # 将平均奖励和标准差扩展，使其与每个生成结果一一对应
         mean_grouped_rewards = mean_grouped_rewards.repeat_interleave(
-            self.num_generations, dim=0
-        )
+            rest_num_generations, dim=0
+        )  # 对每组的平均奖励进行重复，使其维度与原始奖励一致
         std_grouped_rewards = std_grouped_rewards.repeat_interleave(
-            self.num_generations, dim=0
-        )
-        advantages = (rewards - mean_grouped_rewards) / (std_grouped_rewards + 1e-4)
+            rest_num_generations, dim=0
+        )  # 对每组的标准差进行重复，使其维度与原始奖励一致
 
-        # Slice to keep only the local part of the data
+        # 计算优势函数：(剩余奖励 - 平均剩余奖励) / (剩余标准差 + 一个小常数防止除零)
+        rest_advantages = (rest_rewards - mean_grouped_rewards) / (std_grouped_rewards + 1e-4)
+
+        # 填充优势值
+        advantages = torch.zeros_like(rest_mask, dtype=torch.float)
+        advantages[rest_mask] = rest_advantages
+
+        # 只保留当前进程负责的数据部分
         process_slice = slice(
             self.accelerator.process_index * len(prompts),
             (self.accelerator.process_index + 1) * len(prompts),
-        )
-        advantages = advantages[process_slice]
+        )  # 根据当前进程索引计算需要处理的数据切片
+        advantages = advantages[process_slice]  # 获取当前进程负责的优势值
+        rest_mask = rest_mask[process_slice]
+
 
         # Log the metrics
         reward_per_func = rewards_per_func.mean(0)
@@ -727,7 +759,8 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
             )
 
         self._metrics["reward"].append(rewards.mean().item())
-        self._metrics["reward_std"].append(std_grouped_rewards.mean().item())
+        self._metrics["rest_reward"].append(rest_rewards.mean().item())
+        self._metrics["rest_reward_std"].append(std_grouped_rewards.mean().item())
 
         return {
             "prompt_ids": prompt_ids,
@@ -738,6 +771,7 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
             "advantages": advantages,
             "pixel_values": pixel_values,
             "image_grid_thw": image_grid_thw,
+            "rest_mask": rest_mask
         }
 
     def compute_loss(
@@ -754,6 +788,11 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
         pixel_values = inputs["pixel_values"]
         image_grid_thw = inputs["image_grid_thw"]
         logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
+        
+        # 获取额外参数
+        rest_mask = inputs["rest_mask"]
+        advantages = inputs["advantages"]
+        ref_per_token_logps = inputs["ref_per_token_logps"]
 
         per_token_logps = self._get_per_token_logps(
             model,
@@ -763,17 +802,21 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
             image_grid_thw,
             logits_to_keep,
         )
-
+        
         # Compute the KL divergence between the model and the reference model
-        ref_per_token_logps = inputs["ref_per_token_logps"]
+        
+        # 添加 mask，过滤掉最大最小值
+        per_token_logps = per_token_logps[rest_mask]
+        ref_per_token_logps = ref_per_token_logps[rest_mask]
+        advantages = advantages[rest_mask]
+        completion_mask = completion_mask[rest_mask]
+
         per_token_kl = (torch.exp(ref_per_token_logps - per_token_logps)- (ref_per_token_logps - per_token_logps)- 1)
-
-        # x - x.detach() allows for preserving gradients from x
-        advantages = inputs["advantages"]
-        per_token_loss = torch.exp(per_token_logps - per_token_logps.detach()) * advantages.unsqueeze(1)
+        per_token_loss = torch.exp(per_token_logps - per_token_logps.detach()) * advantages.unsqueeze(1) # x - x.detach() allows for preserving gradients from x
         per_token_loss = -(per_token_loss - self.beta * per_token_kl)
-        loss = ((per_token_loss * completion_mask).sum(dim=1) / completion_mask.sum(dim=1)).mean()
 
+        loss = ((per_token_loss * completion_mask).sum(dim=1) / completion_mask.sum(dim=1)).mean()
+        
         # Log the metrics
         completion_length = (
             self.accelerator.gather_for_metrics(completion_mask.sum(1))
