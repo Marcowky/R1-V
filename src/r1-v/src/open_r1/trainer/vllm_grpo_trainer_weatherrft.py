@@ -414,7 +414,6 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
             per_token_logps.append(token_log_prob)
         return torch.stack(per_token_logps)
 
-
     def cosine_lr_schedule(self, global_step, max_steps, base_lr=1, warmup_ratio=0.1, min_lr=0):
         """
         计算当前步骤的学习率，支持 warmup 和余弦衰减。
@@ -435,6 +434,8 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
         if global_step < warmup_steps:
             # Warmup 阶段：线性增加学习率
             lr = base_lr * (global_step / warmup_steps)
+        elif global_step >= max_steps:
+            lr = min_lr
         else:
             # Cosine 衰减阶段
             progress = (global_step - warmup_steps) / (max_steps - warmup_steps)
@@ -613,7 +614,8 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
 
 
         # 不同 reward 的分数比例
-        cur_lr = self.cosine_lr_schedule(global_step=self.state.global_step, max_steps=self.state.max_steps)
+        max_lr_steps = self.state.max_steps * 0.5
+        cur_lr = self.cosine_lr_schedule(global_step=self.state.global_step, max_steps=max_lr_steps)
 
         reward_ratios = {
             "accuracy_reward": 2,
