@@ -3,7 +3,7 @@ cd src/r1-v/
 # 获取当前时间
 current_time=$(date +"%Y-%m-%d-%H-%M-%S")
 
-RUN_NAME="qwen2-vl-2b_grpo_cn-${current_time}"  # to modify
+RUN_NAME="qwen2-vl-2b_grpo_cn_length_kill-${current_time}"  # to modify
 
 QWEN_PATH="/home/kaiyu/Model/Qwen/Qwen2-VL-2B-Instruct"
 HF_DATASET="leonardPKU/GEOQA_R1V_Train_8K" 
@@ -25,9 +25,10 @@ CUDA_VISIBLE_DEVICES="2,3,4,5" torchrun \
     --output_dir $OUTPUT_DIR \
     --model_name_or_path $QWEN_PATH \
     --dataset_name $HF_DATASET \
+    --data_language "cn" \
     --temperature 1.0 \
     --deepspeed local_scripts/zero2_weatherrft.json \
-    --reward_funcs accuracy format \
+    --reward_funcs accuracy format length \
     --max_completion_length 512 \
     --per_device_train_batch_size 1 \
     --gradient_accumulation_steps 4 \

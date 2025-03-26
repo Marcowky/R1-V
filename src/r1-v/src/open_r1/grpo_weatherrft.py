@@ -54,6 +54,10 @@ class GRPOScriptArguments(ScriptArguments):
         default=3136,
         metadata={"help": "Minimum number of pixels for the image"},
     )
+    data_language: Optional[str] = field(
+        default="cn",
+        metadata={"help": "Language of the dataset"},
+    )
 
 
 def accuracy_reward(completions, solution, **kwargs):
@@ -168,8 +172,9 @@ def main(script_args, training_args, model_args):
     reward_funcs = [reward_funcs_registry[func] for func in script_args.reward_funcs]
 
     # Load the dataset
-    weather_rft_dataset_train = WeatherRFTDataset(weather_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/WeatherCQ_dataset.json", image_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/image", split='train', prompt_type='r1', language='en')
-    weather_rft_dataset_validation = WeatherRFTDataset(weather_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/WeatherCQ_dataset.json", image_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/image", split='validation', prompt_type='r1', language='en')
+    weather_rft_dataset_train = WeatherRFTDataset(weather_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/WeatherCQ_dataset.json", image_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/image", split='train', prompt_type='r1', language=script_args.data_language)
+    weather_rft_dataset_validation = WeatherRFTDataset(weather_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/WeatherCQ_dataset.json", image_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/image", split='validation', prompt_type='r1', language=script_args.data_language)
+
 
     train_dataset = Dataset.from_dict({key: [d[key] for d in weather_rft_dataset_train] for key in weather_rft_dataset_train[0]})
     eval_dataset = Dataset.from_dict({key: [d[key] for d in weather_rft_dataset_validation] for key in weather_rft_dataset_validation[0]})
