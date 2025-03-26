@@ -618,11 +618,12 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
         cur_lr = self.cosine_lr_schedule(global_step=self.state.global_step, max_steps=max_lr_steps)
 
         reward_ratios = {
-            "accuracy_reward": 2,
-            "format_reward": 1,
-            "length_reward": 0.5 * cur_lr
+            "accuracy_reward": 10,
+            "format_reward": 4,
+            "length_reward": 2 * cur_lr,
+            "related_reward": 2,
+            "fluency_logical_reward": 2
         }
-
 
         # Compute the rewards
         prompts = [prompt for prompt in prompts for _ in range(self.num_generations)]

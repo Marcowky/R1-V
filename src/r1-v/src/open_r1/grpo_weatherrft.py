@@ -30,6 +30,8 @@ import sys
 sys.path.append('/home/kaiyu/Graduation/WeatherRFT/src')
 
 from eval.weather_rft_dataset_loader import WeatherRFTDataset
+from api.call_api import api_client
+from utils.data_process import force_parse_json
 
 
 @dataclass
@@ -43,7 +45,7 @@ class GRPOScriptArguments(ScriptArguments):
     """
 
     reward_funcs: list[str] = field(
-        default_factory=lambda: ["accuracy", "format", "length"],
+        default_factory=lambda: ["accuracy", "format", "length", "related", "fluency_logical"],
         metadata={"help": "List of reward functions. Possible values: 'accuracy', 'format'"},
     )
     max_pixels: Optional[int] = field(
@@ -57,6 +59,14 @@ class GRPOScriptArguments(ScriptArguments):
     data_language: Optional[str] = field(
         default="cn",
         metadata={"help": "Language of the dataset"},
+    )
+    weather_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "Path to the data"},
+    )
+    weather_image_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "Path to the image data"},
     )
 
 
@@ -153,10 +163,82 @@ def length_reward(completions, **kwargs):
     # Normalize think lengths
     return [(think_len - min_think) / max_think for think_len in think_lengths]
 
+
+def call_local_api(query):
+    local_client = api_client("local")
+    model_name = "/home/kaiyu/model/Qwen/Qwen2.5-32B-Instruct-AWQ/"
+    response = local_client.call_text_api(query=query, 
+                                            temperature=0, 
+                                            return_json=True, 
+                                            model=model_name)
+    return response
+
+
+def call_local_api_return_list(query, num):
+    # print(query)
+    response = call_local_api(query)
+    response = force_parse_json(response)
+    if isinstance(response, dict) and "scores" in response and isinstance(response["scores"], list) and len(response["scores"]) == num:
+        for score in response["scores"]:
+            if not isinstance(score, (int, float)):
+                return [0] * num
+        return response["scores"]
+    else: 
+        # 返回长度为 num 的全 0 列表
+        return [0] * num
+
+
+RELATED_SCORE_PROMPT_CN = """你是一个气象领域的资深评估专家，请针对答案与分析的相关程度，对以下{num}个作答进行打分。
+分数可选：0分，不相关；0.5分，部分相关，1分，高度相关。
+请以 json 格式直接输出分数，输出格式：{{"scores": [xxx, xxx, xxx, xxx, xxx, ...]}}
+原始题目：{prompt}
+输入：{contents}
+输出："""
+
+RELATED_SCORE_PROMPT_EN = """You are a senior evaluation expert in the meteorological field. Please rate the relevance of the answer and analysis for the following {num} answers.
+Score options: 0 points, irrelevant; 0.5 points, partially relevant; 1 point, highly relevant.
+Please output the scores directly in json format, output format: {{"scores": [xxx, xxx, xxx, xxx, xxx, ...]}}
+Prompt: {prompt}
+Input: {contents}
+Output: """
+
+FLUENCY_LOGICAL_SCORE_PROMPT_CN = """你是一个气象领域的资深评估专家，请针对文本的流畅度与逻辑性，对以下{num}个作答进行打分。
+分数可选：0分，语言混乱、多语言混杂、逻辑不通；0.5分，语言流畅、逻辑不通，1分，语言流畅，逻辑合理。
+请以 json 格式直接输出分数，输出格式：{{"scores": [xxx, xxx, xxx, xxx, xxx, ...]}}
+原始题目：{prompt}
+输入：{contents}
+输出："""
+
+FLUENCY_LOGICAL_SCORE_PROMPT_EN = """You are a senior evaluation expert in the meteorological field. Please rate the fluency and logic of the text for the following {num} answers.
+Score options: 0 points, multilingualism and language confusion, illogical; 0.5 points, fluent language, illogical; 1 point, fluent language, logical.
+Please output the scores directly in json format, output format: {{"scores": [xxx, xxx, xxx, xxx, xxx, ...]}}
+Prompt: {prompt}
+Input: {contents}
+Output: """
+
+
+def related_reward(completions, prompts, **kwargs):
+    prompt = prompts[0][0]['content'][1]['text']
+    contents = [completion[0]["content"] for completion in completions]
+    num = len(contents)
+    query = RELATED_SCORE_PROMPT_EN.format(prompt=prompt, contents=contents, num=num)
+    return call_local_api_return_list(query, num)
+
+
+def fluency_logical_reward(completions, prompts, **kwargs):
+    prompt = prompts[0][0]['content'][1]['text']
+    contents = [completion[0]["content"] for completion in completions]
+    num = len(contents)
+    query = FLUENCY_LOGICAL_SCORE_PROMPT_EN.format(prompt=prompt, contents=contents, num=num)
+    return call_local_api_return_list(query, num)
+
+
 reward_funcs_registry = {
     "accuracy": accuracy_reward,
     "format": format_reward,
-    "length": length_reward
+    "length": length_reward,
+    "related": related_reward,
+    "fluency_logical": fluency_logical_reward
 }
 
 SYSTEM_PROMPT = (
@@ -172,8 +254,8 @@ def main(script_args, training_args, model_args):
     reward_funcs = [reward_funcs_registry[func] for func in script_args.reward_funcs]
 
     # Load the dataset
-    weather_rft_dataset_train = WeatherRFTDataset(weather_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/WeatherCQ_dataset.json", image_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/image", split='train', prompt_type='r1', language=script_args.data_language)
-    weather_rft_dataset_validation = WeatherRFTDataset(weather_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/WeatherCQ_dataset.json", image_rft_path="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/image", split='validation', prompt_type='r1', language=script_args.data_language)
+    weather_rft_dataset_train = WeatherRFTDataset(weather_rft_path=script_args.weather_path, image_rft_path=script_args.weather_image_path, split='train', prompt_type='r1', language=script_args.data_language)
+    weather_rft_dataset_validation = WeatherRFTDataset(weather_rft_path=script_args.weather_path, image_rft_path=script_args.weather_image_path, split='validation', prompt_type='r1', language=script_args.data_language)
 
 
     train_dataset = Dataset.from_dict({key: [d[key] for d in weather_rft_dataset_train] for key in weather_rft_dataset_train[0]})

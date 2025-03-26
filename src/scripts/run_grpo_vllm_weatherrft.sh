@@ -3,7 +3,10 @@ cd src/r1-v/
 # 获取当前时间
 current_time=$(date +"%Y-%m-%d-%H-%M-%S")
 
-RUN_NAME="qwen2-vl-2b_grpo_cn_length_kill-${current_time}"  # to modify
+RUN_NAME="qwen2-vl-2b_grpo_en_length_think_kill-${current_time}"  # to modify
+WEATHER_PATH="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/WeatherCQ_dataset.json"
+WEATHER_IMAGE_PATH="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/image"
+DATA_LANGUAGE="en"
 
 QWEN_PATH="/home/kaiyu/Model/Qwen/Qwen2-VL-2B-Instruct"
 HF_DATASET="leonardPKU/GEOQA_R1V_Train_8K" 
@@ -19,16 +22,18 @@ CUDA_VISIBLE_DEVICES="2,3,4,5" torchrun \
     --nnodes="1" \
     --node_rank="0" \
     --master_addr="127.0.0.1" \
-    --master_port="12366" \
+    --master_port="12368" \
     src/open_r1/grpo_weatherrft.py \
     --use_vllm True \
     --output_dir $OUTPUT_DIR \
     --model_name_or_path $QWEN_PATH \
     --dataset_name $HF_DATASET \
-    --data_language "cn" \
+    --weather_path $WEATHER_PATH \
+    --weather_image_path $WEATHER_IMAGE_PATH \
+    --data_language $DATA_LANGUAGE \
     --temperature 1.0 \
     --deepspeed local_scripts/zero2_weatherrft.json \
-    --reward_funcs accuracy format length \
+    --reward_funcs accuracy format length related fluency_logical \
     --max_completion_length 512 \
     --per_device_train_batch_size 1 \
     --gradient_accumulation_steps 4 \
