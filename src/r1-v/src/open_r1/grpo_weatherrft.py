@@ -68,6 +68,10 @@ class GRPOScriptArguments(ScriptArguments):
         default=None,
         metadata={"help": "Path to the image data"},
     )
+    exclude_category: list[str] = field(
+        default_factory=lambda: [],
+        metadata={"help": "List of reward functions. Possible values: '500hpa_situation', '850hpa_situation', 'land_situation', 'rain', 'phenomena', 'max_temp', 'min_temp'"},
+    )
 
 
 def accuracy_reward(completions, solution, **kwargs):

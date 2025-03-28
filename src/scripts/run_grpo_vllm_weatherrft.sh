@@ -3,8 +3,8 @@ cd src/r1-v/
 # 获取当前时间
 current_time=$(date +"%Y-%m-%d-%H-%M-%S")
 
-RUN_NAME="qwen2-vl-2b_grpo_en_length_think_kill-${current_time}"  # to modify
-WEATHER_PATH="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/WeatherCQ_dataset.json"
+RUN_NAME="qwen2-vl-2b_grpo_en_length_think_with_acc_kill-${current_time}"  # to modify
+WEATHER_PATH="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/WeatherCQ_dataset_deepseek_v3.json"
 WEATHER_IMAGE_PATH="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/image"
 DATA_LANGUAGE="en"
 
@@ -34,6 +34,7 @@ CUDA_VISIBLE_DEVICES="2,3,4,5" torchrun \
     --temperature 1.0 \
     --deepspeed local_scripts/zero2_weatherrft.json \
     --reward_funcs accuracy format length related fluency_logical \
+    --exclude_category rain phenomena max_temp min_temp \
     --max_completion_length 512 \
     --per_device_train_batch_size 1 \
     --gradient_accumulation_steps 4 \
