@@ -258,12 +258,12 @@ def main(script_args, training_args, model_args):
     reward_funcs = [reward_funcs_registry[func] for func in script_args.reward_funcs]
 
     # Load the dataset
-    weather_rft_dataset_train = WeatherRFTDataset(weather_rft_path=script_args.weather_path, image_rft_path=script_args.weather_image_path, split='train', prompt_type='r1', language=script_args.data_language)
-    weather_rft_dataset_validation = WeatherRFTDataset(weather_rft_path=script_args.weather_path, image_rft_path=script_args.weather_image_path, split='validation', prompt_type='r1', language=script_args.data_language)
+    weather_rft_dataset_train = WeatherRFTDataset(weather_rft_path=script_args.weather_path, image_rft_path=script_args.weather_image_path, split='train', prompt_type='r1', language=script_args.data_language, exclude_category=script_args.exclude_category)
+    # weather_rft_dataset_validation = WeatherRFTDataset(weather_rft_path=script_args.weather_path, image_rft_path=script_args.weather_image_path, split='validation', prompt_type='r1', language=script_args.data_language, exclude_category=script_args.exclude_category)
 
 
     train_dataset = Dataset.from_dict({key: [d[key] for d in weather_rft_dataset_train] for key in weather_rft_dataset_train[0]})
-    eval_dataset = Dataset.from_dict({key: [d[key] for d in weather_rft_dataset_validation] for key in weather_rft_dataset_validation[0]})
+    # eval_dataset = Dataset.from_dict({key: [d[key] for d in weather_rft_dataset_validation] for key in weather_rft_dataset_validation[0]})
 
 
     def process_example(example):
@@ -298,7 +298,7 @@ def main(script_args, training_args, model_args):
         reward_funcs=reward_funcs,
         args=training_args,
         train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
+        eval_dataset=None,
         peft_config=get_peft_config(model_args),
         attn_implementation=model_args.attn_implementation,
         max_pixels=script_args.max_pixels,
