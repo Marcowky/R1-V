@@ -286,7 +286,7 @@ def main(script_args, training_args, model_args):
 
 
     train_dataset = train_dataset.map(process_example)
-    eval_dataset = eval_dataset.map(process_example)
+    # eval_dataset = eval_dataset.map(process_example)
 
     
     trainer_cls = Qwen2VLGRPOTrainerWeatherRFT if not training_args.use_vllm else Qwen2VLGRPOVLLMTrainerWeatherRFT
