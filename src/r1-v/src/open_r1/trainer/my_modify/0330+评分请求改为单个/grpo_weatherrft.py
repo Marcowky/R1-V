@@ -226,12 +226,12 @@ def fluency_reward(completions, prompts, **kwargs):
 
 def think_depth_reward(completions, prompts, **kwargs):
     THINK_DEPTH_PROMPT_CN = """你是一个气象领域的资深评估专家，请针对文本的思考深度，对以下作答进行打分。
-分数可选：0-5分，分数越高，思考深度越深。
+分数可选：0分，思考深度浅，1分，思考深度深。
 请以 json 格式直接输出分数，输出格式：{{"scores": xxx}}
 原始题目：{prompt}
 输入：{content}
 输出："""
-    return process_completions_api_reward(completions, prompts, THINK_DEPTH_PROMPT_CN, 5)
+    return process_completions_api_reward(completions, prompts, THINK_DEPTH_PROMPT_CN)
 
 
 reward_funcs_registry = {
