@@ -192,48 +192,92 @@ def call_local_api_return_list(query, num):
         return [0] * num
 
 
+# RELATED_SCORE_PROMPT_CN = """你是一个气象领域的资深评估专家，请针对答案与分析的相关程度，对以下{num}个作答进行打分。
+# 分数可选：0分，不相关；0.5分，部分相关，1分，高度相关。
+# 请以 json 格式直接输出分数，输出格式：{{"scores": [xxx, xxx, xxx, xxx, xxx, ...]}}
+# 原始题目：{prompt}
+# 输入：{contents}
+# 输出："""
+
+# RELATED_SCORE_PROMPT_EN = """You are a senior evaluation expert in the meteorological field. Please rate the relevance of the answer and analysis for the following {num} answers.
+# Score options: 0 points, irrelevant; 0.5 points, partially relevant; 1 point, highly relevant.
+# Please output the scores directly in json format, output format: {{"scores": [xxx, xxx, xxx, xxx, xxx, ...]}}
+# Prompt: {prompt}
+# Input: {contents}
+# Output: """
+
+# FLUENCY_LOGICAL_SCORE_PROMPT_CN = """你是一个气象领域的资深评估专家，请针对文本的流畅度与逻辑性，对以下{num}个作答进行打分。
+# 分数可选：0分，语言混乱、多语言混杂、逻辑不通；0.5分，语言流畅、逻辑不通，1分，语言流畅，逻辑合理。
+# 请以 json 格式直接输出分数，输出格式：{{"scores": [xxx, xxx, xxx, xxx, xxx, ...]}}
+# 原始题目：{prompt}
+# 输入：{contents}
+# 输出："""
+
+# FLUENCY_LOGICAL_SCORE_PROMPT_EN = """You are a senior evaluation expert in the meteorological field. Please rate the fluency and logic of the text for the following {num} answers.
+# Score options: 0 points, multilingualism and language confusion, illogical; 0.5 points, fluent language, illogical; 1 point, fluent language, logical.
+# Please output the scores directly in json format, output format: {{"scores": [xxx, xxx, xxx, xxx, xxx, ...]}}
+# Prompt: {prompt}
+# Input: {contents}
+# Output: """
+
 RELATED_SCORE_PROMPT_CN = """你是一个气象领域的资深评估专家，请针对答案与分析的相关程度，对以下{num}个作答进行打分。
-分数可选：0分，不相关；0.5分，部分相关，1分，高度相关。
+分数可选：0分，不相关，1分，相关。
 请以 json 格式直接输出分数，输出格式：{{"scores": [xxx, xxx, xxx, xxx, xxx, ...]}}
 原始题目：{prompt}
 输入：{contents}
 输出："""
 
-RELATED_SCORE_PROMPT_EN = """You are a senior evaluation expert in the meteorological field. Please rate the relevance of the answer and analysis for the following {num} answers.
-Score options: 0 points, irrelevant; 0.5 points, partially relevant; 1 point, highly relevant.
-Please output the scores directly in json format, output format: {{"scores": [xxx, xxx, xxx, xxx, xxx, ...]}}
-Prompt: {prompt}
-Input: {contents}
-Output: """
-
-FLUENCY_LOGICAL_SCORE_PROMPT_CN = """你是一个气象领域的资深评估专家，请针对文本的流畅度与逻辑性，对以下{num}个作答进行打分。
-分数可选：0分，语言混乱、多语言混杂、逻辑不通；0.5分，语言流畅、逻辑不通，1分，语言流畅，逻辑合理。
+FLUENCY_SCORE_PROMPT_CN = """你是一个气象领域的资深评估专家，请针对文本的语言流畅度，对以下{num}个作答进行打分。
+分数可选：0分，语言不流畅、多语言混杂，1分，语言流畅，单一语言。
 请以 json 格式直接输出分数，输出格式：{{"scores": [xxx, xxx, xxx, xxx, xxx, ...]}}
 原始题目：{prompt}
 输入：{contents}
 输出："""
 
-FLUENCY_LOGICAL_SCORE_PROMPT_EN = """You are a senior evaluation expert in the meteorological field. Please rate the fluency and logic of the text for the following {num} answers.
-Score options: 0 points, multilingualism and language confusion, illogical; 0.5 points, fluent language, illogical; 1 point, fluent language, logical.
-Please output the scores directly in json format, output format: {{"scores": [xxx, xxx, xxx, xxx, xxx, ...]}}
-Prompt: {prompt}
-Input: {contents}
-Output: """
+THINK_DEPTH_PROMPT_CN = """你是一个气象领域的资深评估专家，请针对文本的思考深度，对以下{num}个作答进行打分。
+分数可选：0分，思考深度浅，1分，思考深度深。
+请以 json 格式直接输出分数，输出格式：{{"scores": [xxx, xxx, xxx, xxx, xxx, ...]}}
+原始题目：{prompt}
+输入：{contents}
+输出："""
+
+
+# def related_reward(completions, prompts, **kwargs):
+#     prompt = prompts[0][0]['content'][1]['text']
+#     contents = [completion[0]["content"] for completion in completions]
+#     num = len(contents)
+#     query = RELATED_SCORE_PROMPT_EN.format(prompt=prompt, contents=contents, num=num)
+#     return call_local_api_return_list(query, num)
+
+
+# def fluency_logical_reward(completions, prompts, **kwargs):
+#     prompt = prompts[0][0]['content'][1]['text']
+#     contents = [completion[0]["content"] for completion in completions]
+#     num = len(contents)
+#     query = FLUENCY_LOGICAL_SCORE_PROMPT_EN.format(prompt=prompt, contents=contents, num=num)
+#     return call_local_api_return_list(query, num)
 
 
 def related_reward(completions, prompts, **kwargs):
     prompt = prompts[0][0]['content'][1]['text']
-    contents = [completion[0]["content"] for completion in completions]
+    contents = [completion[0]["content"].replace("<think>", " ").replace("</think>", " ").replace("<answer>", " ").replace("</answer>", " ") for completion in completions]
     num = len(contents)
-    query = RELATED_SCORE_PROMPT_EN.format(prompt=prompt, contents=contents, num=num)
+    query = RELATED_SCORE_PROMPT_CN.format(prompt=prompt, contents=contents, num=num)
     return call_local_api_return_list(query, num)
 
 
-def fluency_logical_reward(completions, prompts, **kwargs):
+def fluency_reward(completions, prompts, **kwargs):
     prompt = prompts[0][0]['content'][1]['text']
-    contents = [completion[0]["content"] for completion in completions]
+    contents = [completion[0]["content"].replace("<think>", " ").replace("</think>", " ").replace("<answer>", " ").replace("</answer>", " ") for completion in completions]
     num = len(contents)
-    query = FLUENCY_LOGICAL_SCORE_PROMPT_EN.format(prompt=prompt, contents=contents, num=num)
+    query = FLUENCY_SCORE_PROMPT_CN.format(prompt=prompt, contents=contents, num=num)
+    return call_local_api_return_list(query, num)
+
+def think_depth_reward(completions, prompts, **kwargs):
+    prompt = prompts[0][0]['content'][1]['text']
+    contents = [completion[0]["content"].replace("<think>", " ").replace("</think>", " ").replace("<answer>", " ").replace("</answer>", " ") for completion in completions]
+    num = len(contents)
+    query = THINK_DEPTH_PROMPT_CN.format(prompt=prompt, contents=contents, num=num)
     return call_local_api_return_list(query, num)
 
 
@@ -242,7 +286,8 @@ reward_funcs_registry = {
     "format": format_reward,
     "length": length_reward,
     "related": related_reward,
-    "fluency_logical": fluency_logical_reward
+    "fluency": fluency_reward,
+    "think_depth": think_depth_reward,
 }
 
 SYSTEM_PROMPT = (

@@ -617,12 +617,19 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
         # max_lr_steps = self.state.max_steps * 1
         # cur_lr = self.cosine_lr_schedule(global_step=self.state.global_step, max_steps=max_lr_steps)
 
+        # reward_ratios = {
+        #     "accuracy_reward": 10,
+        #     "format_reward": 4,
+        #     "length_reward": 2,
+        #     "related_reward": 1,
+        #     "fluency_logical_reward": 1
+        # }
         reward_ratios = {
             "accuracy_reward": 10,
             "format_reward": 4,
-            "length_reward": 2,
             "related_reward": 1,
-            "fluency_logical_reward": 1
+            "fluency_reward": 1,
+            "think_depth_reward": 2,
         }
 
         # Compute the rewards
@@ -683,9 +690,18 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
                 zero_accuracy_mask = rewards_per_func[:, i] != 0
                 break
 
+        # # 计算 formate reward 为 0 的奖励位置
+        # zero_format_mask = torch.ones_like(rewards_per_func[:, 0], dtype=torch.bool)
+        # for i, reward_func in enumerate(self.reward_funcs):
+        #     if reward_func.__name__ == 'format_reward':
+        #         # 获取 rewards_per_func[:, i] 为 0 的索引
+        #         zero_format_mask = rewards_per_func[:, i] != 0
+        #         break
+
         # 如果 accuracy_reward 为 0，将 length_reward, related_reward, fluency_logical_reward 也置为 0  
         for i, reward_func in enumerate(self.reward_funcs):
-            if reward_func.__name__ in ['length_reward', 'related_reward', 'fluency_logical_reward']:
+            if reward_func.__name__ not in ['accuracy_reward', 'format_reward']:
+                # rewards_per_func[:, i] = rewards_per_func[:, i] * zero_accuracy_mask * zero_format_mask
                 rewards_per_func[:, i] = rewards_per_func[:, i] * zero_accuracy_mask
 
         # Log the completions and rewards

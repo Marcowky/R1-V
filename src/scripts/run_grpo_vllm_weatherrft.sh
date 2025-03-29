@@ -3,21 +3,21 @@ cd src/r1-v/
 # 获取当前时间
 current_time=$(date +"%Y-%m-%d-%H-%M-%S")
 
-RUN_NAME="qwen2-vl-2b_grpo_en_length_think_kill_500hpa_situation-${current_time}"  # to modify
+RUN_NAME="${current_time}_ours_wo_acc_500hpa_situation"  # to modify
 WEATHER_PATH="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/WeatherCQ_dataset_deepseek_v3.json"
 WEATHER_IMAGE_PATH="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/image"
-DATA_LANGUAGE="en"
+DATA_LANGUAGE="cn"
 
 QWEN_PATH="/home/kaiyu/Model/Qwen/Qwen2-VL-2B-Instruct"
 HF_DATASET="leonardPKU/GEOQA_R1V_Train_8K" 
-OUTPUT_DIR="/home/kaiyu/Graduation/REF_REPOS/R1-V/output/${RUN_NAME}"
+OUTPUT_DIR="/home/kaiyu/Graduation/REF_REPOS/R1-V/new_output/${RUN_NAME}"
 
 export DEBUG_MODE="true"
 export LOG_PATH="/home/kaiyu/Graduation/REF_REPOS/R1-V/log/log_${RUN_NAME}.txt" 
 export HF_ENDPOINT='https://hf-mirror.com'
 
 
-CUDA_VISIBLE_DEVICES="2,3,4,5" torchrun \
+CUDA_VISIBLE_DEVICES="0,2,3,4" torchrun \
     --nproc_per_node="3" \
     --nnodes="1" \
     --node_rank="0" \
@@ -33,7 +33,7 @@ CUDA_VISIBLE_DEVICES="2,3,4,5" torchrun \
     --data_language $DATA_LANGUAGE \
     --temperature 1.0 \
     --deepspeed local_scripts/zero2_weatherrft.json \
-    --reward_funcs accuracy format length related fluency_logical \
+    --reward_funcs accuracy format related fluency think_depth \
     --exclude_category 850hpa_situation land_situation rain phenomena max_temp min_temp \
     --max_completion_length 512 \
     --per_device_train_batch_size 1 \
@@ -43,11 +43,14 @@ CUDA_VISIBLE_DEVICES="2,3,4,5" torchrun \
     --report_to wandb \
     --gradient_checkpointing true \
     --attn_implementation flash_attention_2 \
-    --num_train_epochs 1 \
+    --num_train_epochs 2 \
     --run_name $RUN_NAME \
-    --save_steps 100 \
+    --save_steps 50 \
     --save_only_model true \
     --num_generations 12 \
     --min_pixels 3136 \
     --max_pixels 401408 \
     --seed 42
+
+# --reward_funcs accuracy format length related fluency_logical
+# --exclude_category 850hpa_situation land_situation rain phenomena max_temp min_temp
