@@ -3,7 +3,7 @@ cd src/r1-v/
 # 获取当前时间
 current_time=$(date +"%Y-%m-%d-%H-%M-%S")
 
-RUN_NAME="${current_time}_ours_coradd_wrongsub_500hpa_situation"  # to modify
+RUN_NAME="${current_time}_ours_coradd_wrongsub_singlereq_500hpa_situation"  # to modify
 WEATHER_PATH="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/WeatherCQ_dataset_deepseek_v3.json"
 WEATHER_IMAGE_PATH="/home/kaiyu/Graduation/WeatherRFT/data/dataset/WeatherCQ/image"
 DATA_LANGUAGE="cn"
@@ -17,12 +17,12 @@ export LOG_PATH="/home/kaiyu/Graduation/REF_REPOS/R1-V/log/log_${RUN_NAME}.txt"
 export HF_ENDPOINT='https://hf-mirror.com'
 
 
-CUDA_VISIBLE_DEVICES="0,2,3,4" torchrun \
+CUDA_VISIBLE_DEVICES="5,6,7,8" torchrun \
     --nproc_per_node="3" \
     --nnodes="1" \
     --node_rank="0" \
     --master_addr="127.0.0.1" \
-    --master_port="12368" \
+    --master_port="12366" \
     src/open_r1/grpo_weatherrft.py \
     --use_vllm True \
     --output_dir $OUTPUT_DIR \
