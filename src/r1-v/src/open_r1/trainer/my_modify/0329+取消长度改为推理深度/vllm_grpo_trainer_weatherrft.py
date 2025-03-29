@@ -735,7 +735,7 @@ class Qwen2VLGRPOVLLMTrainerWeatherRFT(Trainer):
         rest_num_generations = self.num_generations
 
         # 如果生成次数大于 4，去掉最大最小值
-        if self.num_generations >= 100: # 设置阈值
+        if self.num_generations >= 4: ################# 设置阈值
             min_indices = sorted_indices[:, 0]
             max_indices = sorted_indices[:, -1]
             mask.scatter_(1, min_indices.unsqueeze(1), 0)
